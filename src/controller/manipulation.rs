@@ -179,6 +179,38 @@ pub fn continue_last_activity(
     }
 }
 
+pub fn toggle(
+    file_name: &str,
+    project_name: Option<&str>,
+    activity_description: Option<&str>,
+    time: Option<NaiveDateTime>,
+    settings: &CliSettings,
+) -> Result<()> {
+    let mut file_content = bartib_file::get_file_content(file_name)?;
+    if file_content.is_empty() {
+        bail!("No activity has been started before.")
+    }
+
+    if stop_all_running_activities(&mut file_content, time).is_some() {
+        if bartib_file::write_to_file(file_name, &file_content)
+            .context(format!("Could not write to file: {file_name}"))
+            .is_ok()
+        {
+            println!("Stopped all running activities");
+        }
+    } else {
+        continue_last_activity(
+            file_name,
+            project_name,
+            activity_description,
+            time,
+            0,
+            settings,
+        )?
+    }
+    Ok(())
+}
+
 pub fn start_editor(file_name: &str, optional_editor_command: Option<&str>) -> Result<()> {
     let editor_command = optional_editor_command.context("editor command is missing")?;
     let command = Command::new(editor_command).arg(file_name).spawn();
@@ -195,10 +227,13 @@ pub fn start_editor(file_name: &str, optional_editor_command: Option<&str>) -> R
 fn stop_all_running_activities(
     file_content: &mut [bartib_file::Line],
     time: Option<NaiveDateTime>,
-) {
+) -> Option<usize> {
+    let mut count: usize = 0;
+
     for line in file_content {
         if let Ok(activity) = &mut line.activity {
             if !activity.is_stopped() {
+                count += 1;
                 activity.stop(time);
                 println!(
                     "Stopped activity: \"{}\" ({}) started at {} ({})",
@@ -211,5 +246,11 @@ fn stop_all_running_activities(
                 line.set_changed();
             }
         }
+    }
+
+    if count > 0 {
+        Some(count)
+    } else {
+        None
     }
 }

@@ -161,6 +161,12 @@ To get started, view the `start` help with `bartib start --help`")
                 .arg(&arg_time),
         )
         .subcommand(
+            SubCommand::with_name("toggle")
+                .arg(&arg_description)
+                .arg(&arg_project)
+                .arg(&arg_time)
+                .about("stops currently running activity, if none resumes last"))
+        .subcommand(
             SubCommand::with_name("cancel").about("cancels all currently running activities"),
         )
         .subcommand(
@@ -366,6 +372,19 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
                 .map(|t| Local::now().date_naive().and_time(t));
 
             bartib::controller::manipulation::stop(file_name, time)
+        }
+        ("toggle", Some(sub_m)) => {
+            let project_name = sub_m.value_of("project");
+            let activity_description = sub_m.value_of("description");
+            let time = get_time_argument_or_ignore(sub_m.value_of("time"), "-t/--time")
+                .map(|t| Local::now().date_naive().and_time(t));
+            bartib::controller::manipulation::toggle(
+                file_name,
+                project_name,
+                activity_description,
+                time,
+                &settings,
+            )
         }
         ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name),
         ("current", Some(_)) => bartib::controller::list::list_running(file_name, &settings),
