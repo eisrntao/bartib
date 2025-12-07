@@ -1,6 +1,13 @@
 use anyhow::Result;
 use chrono::Duration;
 
+#[cfg(feature = "json")]
+use crate::view::format_util::format_duration;
+#[cfg(feature = "json")]
+use serde::ser::SerializeStruct;
+#[cfg(feature = "json")]
+use serde::{Serialize, Serializer};
+
 use crate::data::activity;
 use crate::data::round_util::round_datetime;
 
@@ -16,6 +23,22 @@ pub struct StatusReportData<'a> {
     pub today: Duration,
     pub current_week: Duration,
     pub current_month: Duration,
+}
+
+#[cfg(feature = "json")]
+impl<'a> Serialize for StatusReportData<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("StatusReportData", 4)?;
+        s.serialize_field("activity", &self.activity)?;
+        s.serialize_field("project", &self.project)?;
+        s.serialize_field("today", &format_duration(&self.today))?;
+        s.serialize_field("current_week", &format_duration(&self.current_week))?;
+        s.serialize_field("current_month", &format_duration(&self.current_month))?;
+        s.end()
+    }
 }
 pub trait StatusReportWriter {
     fn process(&self, data: &StatusReportData) -> Result<()>;

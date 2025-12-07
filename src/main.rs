@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 
 use anyhow::{bail, Context, Result};
+use bartib::view::settings::CliSettings;
 use bartib::view::status::StatusReport;
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveTime};
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -100,7 +101,8 @@ fn main() -> Result<()> {
         .help("the project to which the new activity belongs")
         .takes_value(true);
 
-    let matches = App::new("bartib")
+    #[cfg_attr(not(feature = "json"), allow(unused_mut))]
+    let mut app = App::new("bartib")
         .version(crate_version!())
         .author("Nikolas Schmidt-Voigt <nikolas.schmidt-voigt@posteo.de>")
         .about("A simple timetracker")
@@ -115,6 +117,14 @@ To get started, view the `start` help with `bartib start --help`")
                 .help("the file in which bartib tracks all the activities")
                 .env("BARTIB_FILE")
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("nowarn")
+                .long("nowarn")
+                .help("suppress warnings")
+                .required(false)
+                .takes_value(false)
+                .global(true)
         )
         .subcommand(
             SubCommand::with_name("start")
@@ -282,16 +292,31 @@ To get started, view the `start` help with `bartib start --help`")
                         .takes_value(true)
                         .required(false),
                 ),
-        )
-        .get_matches();
+        );
+
+    #[cfg(feature = "json")]
+    {
+        app = app.arg(
+            Arg::with_name("json")
+                .long("json")
+                .help("use json as the output format instead for scripting")
+                .required(false)
+                .takes_value(false)
+                .global(true),
+        );
+    }
+
+    let matches = app.get_matches();
 
     let file_name = matches.value_of("file")
         .context("Please specify a file with your activity log either as -f option or as BARTIB_FILE environment variable")?;
 
-    run_subcommand(&matches, file_name)
+    let settings = CliSettings::from_matches(&matches);
+
+    run_subcommand(&matches, file_name, settings)
 }
 
-fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
+fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) -> Result<()> {
     match matches.subcommand() {
         ("start", Some(sub_m)) => {
             let project_name = sub_m.value_of("project").unwrap();
@@ -333,6 +358,7 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
                 activity_description,
                 time,
                 number,
+                &settings,
             )
         }
         ("stop", Some(sub_m)) => {
@@ -342,27 +368,34 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
             bartib::controller::manipulation::stop(file_name, time)
         }
         ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name),
-        ("current", Some(_)) => bartib::controller::list::list_running(file_name),
+        ("current", Some(_)) => bartib::controller::list::list_running(file_name, &settings),
         ("list", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
             let do_group_activities = !sub_m.is_present("no_grouping") && filter.date.is_none();
-            bartib::controller::list::list(file_name, filter, do_group_activities, processors)
+            bartib::controller::list::list(
+                file_name,
+                filter,
+                do_group_activities,
+                processors,
+                &settings,
+            )
         }
         ("report", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
-            bartib::controller::report::show_report(file_name, filter, processors)
+            bartib::controller::report::show_report(file_name, filter, processors, &settings)
         }
         ("projects", Some(sub_m)) => bartib::controller::list::list_projects(
             file_name,
             sub_m.is_present("current"),
             sub_m.is_present("no-quotes"),
+            &settings,
         ),
         ("last", Some(sub_m)) => {
             let number = get_number_argument_or_ignore(sub_m.value_of("number"), "-n/--number")
                 .unwrap_or(10);
-            bartib::controller::list::list_last_activities(file_name, number)
+            bartib::controller::list::list_last_activities(file_name, number, &settings)
         }
         ("edit", Some(sub_m)) => {
             let optional_editor_command = sub_m.value_of("editor");
@@ -372,13 +405,19 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
         ("sanity", Some(_)) => bartib::controller::list::sanity_check(file_name),
         ("search", Some(sub_m)) => {
             let search_term = sub_m.value_of("search_term");
-            bartib::controller::list::search(file_name, search_term)
+            bartib::controller::list::search(file_name, search_term, &settings)
         }
         ("status", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
             let writer = create_status_writer(sub_m);
-            bartib::controller::status::show_status(file_name, filter, processors, writer.borrow())
+            bartib::controller::status::show_status(
+                file_name,
+                filter,
+                processors,
+                writer.borrow(),
+                &settings,
+            )
         }
         _ => bail!("Unknown command"),
     }

@@ -5,14 +5,16 @@ use crate::data::bartib_file;
 use crate::data::getter;
 use crate::data::processor;
 use crate::view::report;
+use crate::view::settings::CliSettings;
 
 pub fn show_report(
     file_name: &str,
     filter: getter::ActivityFilter,
     processors: processor::ProcessorList,
+    settings: &CliSettings,
 ) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
-    let activities = getter::get_activities(&file_content).collect();
+    let activities = getter::get_activities(&file_content, !settings.nowarn).collect();
 
     let processed_activities_bind: Vec<activity::Activity> =
         processor::process_activities(activities, processors);

@@ -9,11 +9,12 @@ use crate::data::bartib_file;
 use crate::data::getter;
 use crate::data::processor;
 use crate::view::list;
+use crate::view::settings::CliSettings;
 
 // lists all currently running activities.
-pub fn list_running(file_name: &str) -> Result<()> {
+pub fn list_running(file_name: &str, settings: &CliSettings) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
-    let running_activities = getter::get_running_activities(&file_content);
+    let running_activities = getter::get_running_activities(&file_content, !settings.nowarn);
 
     list::list_running_activities(&running_activities);
 
@@ -28,9 +29,10 @@ pub fn list(
     filter: getter::ActivityFilter,
     do_group_activities: bool,
     processors: processor::ProcessorList,
+    settings: &CliSettings,
 ) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
-    let activities = getter::get_activities(&file_content).collect();
+    let activities = getter::get_activities(&file_content, !settings.nowarn).collect();
     let processed_activities_bind: Vec<activity::Activity> =
         processor::process_activities(activities, processors);
     let processed_activities: Vec<&activity::Activity> = processed_activities_bind.iter().collect();
@@ -164,10 +166,15 @@ pub fn check(file_name: &str) -> Result<()> {
 }
 
 // lists all projects
-pub fn list_projects(file_name: &str, current: bool, no_quotes: bool) -> Result<()> {
+pub fn list_projects(
+    file_name: &str,
+    current: bool,
+    no_quotes: bool,
+    settings: &CliSettings,
+) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
 
-    let mut all_projects: Vec<&String> = getter::get_activities(&file_content)
+    let mut all_projects: Vec<&String> = getter::get_activities(&file_content, !settings.nowarn)
         .filter(|activity| !(current && activity.is_stopped()))
         .map(|activity| &activity.project)
         .collect();
@@ -187,11 +194,11 @@ pub fn list_projects(file_name: &str, current: bool, no_quotes: bool) -> Result<
 }
 
 // return last finished activity
-pub fn list_last_activities(file_name: &str, number: usize) -> Result<()> {
+pub fn list_last_activities(file_name: &str, number: usize, settings: &CliSettings) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
 
     let descriptions_and_projects: Vec<(&String, &String)> =
-        getter::get_descriptions_and_projects(&file_content);
+        getter::get_descriptions_and_projects(&file_content, !settings.nowarn);
     let first_element = descriptions_and_projects.len().saturating_sub(number);
 
     list::list_descriptions_and_projects(&descriptions_and_projects[first_element..]);
@@ -200,14 +207,14 @@ pub fn list_last_activities(file_name: &str, number: usize) -> Result<()> {
 }
 
 // searches for the term in descriptions and projects
-pub fn search(file_name: &str, search_term: Option<&str>) -> Result<()> {
+pub fn search(file_name: &str, search_term: Option<&str>, settings: &CliSettings) -> Result<()> {
     let search_term = search_term
         .map(|term| format!("*{}*", term.to_lowercase()))
         .unwrap_or("".to_string());
     let file_content = bartib_file::get_file_content(file_name)?;
 
     let descriptions_and_projects: Vec<(&String, &String)> =
-        getter::get_descriptions_and_projects(&file_content);
+        getter::get_descriptions_and_projects(&file_content, !settings.nowarn);
     let search_term_wildmatch = WildMatch::new(&search_term);
     let matches: Vec<(usize, &(&String, &String))> = descriptions_and_projects
         .iter()

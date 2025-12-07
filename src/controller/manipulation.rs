@@ -7,6 +7,7 @@ use crate::data::activity;
 use crate::data::bartib_file;
 use crate::data::getter;
 use crate::view::format_util;
+use crate::view::settings::CliSettings;
 
 // starts a new activity
 pub fn start(
@@ -138,11 +139,12 @@ pub fn continue_last_activity(
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
     number: usize,
+    settings: &CliSettings,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
 
     let descriptions_and_projects: Vec<(&String, &String)> =
-        getter::get_descriptions_and_projects(&file_content);
+        getter::get_descriptions_and_projects(&file_content, !settings.nowarn);
 
     if descriptions_and_projects.is_empty() {
         bail!("No activity has been started before.")
