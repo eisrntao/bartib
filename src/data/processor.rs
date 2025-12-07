@@ -1,11 +1,15 @@
 use anyhow::Result;
 use chrono::Duration;
+
+#[cfg(feature = "json")]
+use crate::view::format_util::format_duration;
+#[cfg(feature = "json")]
 use serde::ser::SerializeStruct;
-use serde::Serialize;
+#[cfg(feature = "json")]
+use serde::{Serialize, Serializer};
 
 use crate::data::activity;
 use crate::data::round_util::round_datetime;
-use crate::view::format_util::format_duration;
 
 pub type ProcessorList = Vec<Box<dyn ActivityProcessor>>;
 
@@ -21,10 +25,11 @@ pub struct StatusReportData<'a> {
     pub current_month: Duration,
 }
 
+#[cfg(feature = "json")]
 impl<'a> Serialize for StatusReportData<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let mut s = serializer.serialize_struct("StatusReportData", 4)?;
         s.serialize_field("activity", &self.activity)?;

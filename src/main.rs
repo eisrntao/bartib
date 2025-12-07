@@ -101,7 +101,8 @@ fn main() -> Result<()> {
         .help("the project to which the new activity belongs")
         .takes_value(true);
 
-    let matches = App::new("bartib")
+    #[cfg_attr(not(feature = "json"), allow(unused_mut))]
+    let mut app = App::new("bartib")
         .version(crate_version!())
         .author("Nikolas Schmidt-Voigt <nikolas.schmidt-voigt@posteo.de>")
         .about("A simple timetracker")
@@ -116,14 +117,6 @@ To get started, view the `start` help with `bartib start --help`")
                 .help("the file in which bartib tracks all the activities")
                 .env("BARTIB_FILE")
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("json")
-                .long("json")
-                .help("use json as the output format for scripting")
-                .takes_value(false)
-                .required(false)
-                .global(true)
         )
         .arg(
             Arg::with_name("nowarn")
@@ -299,8 +292,21 @@ To get started, view the `start` help with `bartib start --help`")
                         .takes_value(true)
                         .required(false),
                 ),
-        )
-        .get_matches();
+        );
+
+    #[cfg(feature = "json")]
+    {
+        app = app.arg(
+            Arg::with_name("json")
+                .long("json")
+                .help("use json as the output format instead for scripting")
+                .required(false)
+                .takes_value(false)
+                .global(true),
+        );
+    }
+
+    let matches = app.get_matches();
 
     let file_name = matches.value_of("file")
         .context("Please specify a file with your activity log either as -f option or as BARTIB_FILE environment variable")?;

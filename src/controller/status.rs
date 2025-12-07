@@ -1,5 +1,9 @@
 use anyhow::Result;
 use chrono::Local;
+
+#[cfg(feature = "json")]
+use crate::view::settings::OutputFormat;
+#[cfg(feature = "json")]
 use serde_json::to_string;
 
 use crate::data::activity;
@@ -9,7 +13,7 @@ use crate::data::filter::Filters;
 use crate::data::getter;
 use crate::data::processor;
 use crate::data::processor::StatusReportData;
-use crate::view::settings::{CliSettings, OutputFormat};
+use crate::view::settings::CliSettings;
 
 pub fn show_status(
     file_name: &str,
@@ -68,12 +72,16 @@ pub fn show_status(
         project: filter.project,
     };
 
-    match settings.output_format {
+    #[cfg(not(feature = "json"))]
+    return writer.process(&status_report_data);
+
+    #[cfg(feature = "json")]
+    return match settings.output_format {
         OutputFormat::Plaintext => writer.process(&status_report_data),
         OutputFormat::Json => {
             let serialized = to_string(&status_report_data)?;
             println!("{}", serialized);
             Ok(())
         }
-    }
+    };
 }

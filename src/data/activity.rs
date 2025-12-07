@@ -3,8 +3,12 @@ use chrono::DurationRound;
 #[cfg(feature = "second-precision")]
 use chrono::Timelike;
 use chrono::{Duration, Local, NaiveDateTime};
+
+#[cfg(feature = "json")]
 use serde::ser::SerializeStruct;
-use serde::Serialize;
+#[cfg(feature = "json")]
+use serde::{Serialize, Serializer};
+
 use std::fmt;
 use std::str::{Chars, FromStr};
 use thiserror::Error;
@@ -20,10 +24,11 @@ pub struct Activity {
     pub description: String,
 }
 
+#[cfg(feature = "json")]
 impl Serialize for Activity {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let start_time = &self.start.format(conf::FORMAT_DATETIME).to_string();
         let end_time = &self
@@ -237,7 +242,7 @@ impl Iterator for StringSplitter<'_> {
     }
 }
 
-fn split_with_escaped_delimiter(s: &str) -> StringSplitter {
+fn split_with_escaped_delimiter(s: &str) -> StringSplitter<'_> {
     StringSplitter { chars: s.chars() }
 }
 
