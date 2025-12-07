@@ -3,6 +3,8 @@ use chrono::DurationRound;
 #[cfg(feature = "second-precision")]
 use chrono::Timelike;
 use chrono::{Duration, Local, NaiveDateTime};
+use serde::ser::SerializeStruct;
+use serde::Serialize;
 use std::fmt;
 use std::str::{Chars, FromStr};
 use thiserror::Error;
@@ -16,6 +18,25 @@ pub struct Activity {
 
     pub project: String,
     pub description: String,
+}
+
+impl Serialize for Activity {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let start_time = &self.start.format(conf::FORMAT_DATETIME).to_string();
+        let end_time = &self
+            .end
+            .map(|t| t.format(conf::FORMAT_DATETIME).to_string());
+
+        let mut s = serializer.serialize_struct("Activity", 4)?;
+        s.serialize_field("start", start_time)?;
+        s.serialize_field("end", end_time)?;
+        s.serialize_field("project", &self.project)?;
+        s.serialize_field("description", &self.description)?;
+        s.end()
+    }
 }
 
 #[derive(Error, Debug)]

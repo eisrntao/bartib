@@ -1,8 +1,11 @@
 use anyhow::Result;
 use chrono::Duration;
+use serde::ser::SerializeStruct;
+use serde::Serialize;
 
 use crate::data::activity;
 use crate::data::round_util::round_datetime;
+use crate::view::format_util::format_duration;
 
 pub type ProcessorList = Vec<Box<dyn ActivityProcessor>>;
 
@@ -16,6 +19,21 @@ pub struct StatusReportData<'a> {
     pub today: Duration,
     pub current_week: Duration,
     pub current_month: Duration,
+}
+
+impl<'a> Serialize for StatusReportData<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("StatusReportData", 4)?;
+        s.serialize_field("activity", &self.activity)?;
+        s.serialize_field("project", &self.project)?;
+        s.serialize_field("today", &format_duration(&self.today))?;
+        s.serialize_field("current_week", &format_duration(&self.current_week))?;
+        s.serialize_field("current_month", &format_duration(&self.current_month))?;
+        s.end()
+    }
 }
 pub trait StatusReportWriter {
     fn process(&self, data: &StatusReportData) -> Result<()>;

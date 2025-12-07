@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 
 use anyhow::{bail, Context, Result};
+use bartib::view::settings::CliSettings;
 use bartib::view::status::StatusReport;
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveTime};
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -115,6 +116,14 @@ To get started, view the `start` help with `bartib start --help`")
                 .help("the file in which bartib tracks all the activities")
                 .env("BARTIB_FILE")
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("json")
+                .long("json")
+                .help("use json as the output format for scripting")
+                .takes_value(false)
+                .required(false)
+                .global(true)
         )
         .subcommand(
             SubCommand::with_name("start")
@@ -288,10 +297,12 @@ To get started, view the `start` help with `bartib start --help`")
     let file_name = matches.value_of("file")
         .context("Please specify a file with your activity log either as -f option or as BARTIB_FILE environment variable")?;
 
-    run_subcommand(&matches, file_name)
+    let settings = CliSettings::from_matches(&matches);
+
+    run_subcommand(&matches, file_name, settings)
 }
 
-fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
+fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) -> Result<()> {
     match matches.subcommand() {
         ("start", Some(sub_m)) => {
             let project_name = sub_m.value_of("project").unwrap();
@@ -378,7 +389,13 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str) -> Result<()> {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
             let writer = create_status_writer(sub_m);
-            bartib::controller::status::show_status(file_name, filter, processors, writer.borrow())
+            bartib::controller::status::show_status(
+                file_name,
+                filter,
+                processors,
+                writer.borrow(),
+                &settings,
+            )
         }
         _ => bail!("Unknown command"),
     }
