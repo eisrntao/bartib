@@ -1,5 +1,7 @@
 use anyhow::Result;
 use chrono::NaiveDateTime;
+#[cfg(feature = "json")]
+use serde_json::to_string;
 use wildmatch::WildMatch;
 
 use crate::conf;
@@ -10,15 +12,31 @@ use crate::data::getter;
 use crate::data::processor;
 use crate::view::list;
 use crate::view::settings::CliSettings;
+use crate::view::settings::OutputFormat;
 
 // lists all currently running activities.
 pub fn list_running(file_name: &str, settings: &CliSettings) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let running_activities = getter::get_running_activities(&file_content, !settings.nowarn);
 
-    list::list_running_activities(&running_activities);
+    #[cfg(feature = "json")]
+    match settings.output_format {
+        OutputFormat::Json => {
+            let serialized = to_string(&running_activities)?;
+            println!("{}", serialized);
+            Ok(())
+        }
+        OutputFormat::Plaintext => {
+            list::list_running_activities(&running_activities);
+            Ok(())
+        }
+    }
 
-    Ok(())
+    #[cfg(not(feature = "json"))]
+    {
+        list::list_running_activities(&running_activities);
+        Ok(())
+    }
 }
 
 // lists tracked activities
