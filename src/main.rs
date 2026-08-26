@@ -1,8 +1,6 @@
-use std::borrow::Borrow;
-
 use anyhow::{bail, Context, Result};
+use bartib::view::output::OutputWriter;
 use bartib::view::settings::CliSettings;
-use bartib::view::status::StatusReport;
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveTime};
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches, SubCommand};
 
@@ -310,11 +308,12 @@ To get started, view the `start` help with `bartib start --help`")
         .context("Please specify a file with your activity log either as -f option or as BARTIB_FILE environment variable")?;
 
     let settings = CliSettings::from_matches(&matches);
+    let writer = settings.create_writer();
 
-    run_subcommand(&matches, file_name, settings)
+    run_subcommand(&matches, file_name, writer.as_ref())
 }
 
-fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) -> Result<()> {
+fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     match matches.subcommand() {
         ("start", Some(sub_m)) => {
             let project_name = sub_m.value_of("project").unwrap();
@@ -377,27 +376,34 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
             )
         }
         ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name),
-        ("current", Some(_)) => bartib::controller::list::list_running(file_name, &settings),
+        ("current", Some(_)) => bartib::controller::list::list_running(file_name, writer),
         ("list", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
             let do_group_activities = !sub_m.is_present("no_grouping") && filter.date.is_none();
-            bartib::controller::list::list(file_name, filter, do_group_activities, processors)
+            bartib::controller::list::list(
+                file_name,
+                filter,
+                do_group_activities,
+                processors,
+                writer,
+            )
         }
         ("report", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
-            bartib::controller::report::show_report(file_name, filter, processors)
+            bartib::controller::report::show_report(file_name, filter, processors, writer)
         }
         ("projects", Some(sub_m)) => bartib::controller::list::list_projects(
             file_name,
             sub_m.is_present("current"),
             sub_m.is_present("no-quotes"),
+            writer,
         ),
         ("last", Some(sub_m)) => {
             let number = get_number_argument_or_ignore(sub_m.value_of("number"), "-n/--number")
                 .unwrap_or(10);
-            bartib::controller::list::list_last_activities(file_name, number)
+            bartib::controller::list::list_last_activities(file_name, number, writer)
         }
         ("edit", Some(sub_m)) => {
             let optional_editor_command = sub_m.value_of("editor");
@@ -407,19 +413,12 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
         ("sanity", Some(_)) => bartib::controller::list::sanity_check(file_name),
         ("search", Some(sub_m)) => {
             let search_term = sub_m.value_of("search_term");
-            bartib::controller::list::search(file_name, search_term)
+            bartib::controller::list::search(file_name, search_term, writer)
         }
         ("status", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
-            let writer = create_status_writer(sub_m);
-            bartib::controller::status::show_status(
-                file_name,
-                filter,
-                processors,
-                writer.borrow(),
-                &settings,
-            )
+            bartib::controller::status::show_status(file_name, filter, processors, writer)
         }
         _ => bail!("Unknown command"),
     }
@@ -433,11 +432,6 @@ fn create_processors_for_arguments(sub_m: &ArgMatches) -> processor::ProcessorLi
     }
 
     processors
-}
-
-fn create_status_writer(_sub_m: &ArgMatches) -> Box<dyn processor::StatusReportWriter> {
-    let result = StatusReport {};
-    Box::new(result)
 }
 
 fn create_filter_for_arguments<'a>(sub_m: &'a ArgMatches) -> ActivityFilter<'a> {

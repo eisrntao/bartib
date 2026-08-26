@@ -127,19 +127,6 @@ pub fn list_running_activities(activities: &[&activity::Activity]) {
     }
 }
 
-// display a list of projects and descriptions with generated index number
-pub fn list_descriptions_and_projects(descriptions_and_projects: &[(&String, &String)]) {
-    list_descriptions_and_projects_with_index(
-        &descriptions_and_projects
-            .iter()
-            .rev()
-            .enumerate()
-            .rev()
-            .collect::<Vec<_>>(),
-        "No activities have been tracked yet",
-    )
-}
-
 // display a list of projects ands descriptions with custom indexes
 pub fn list_descriptions_and_projects_with_index(
     descriptions_and_projects: &[(usize, &(&String, &String))],

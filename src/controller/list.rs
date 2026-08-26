@@ -1,7 +1,5 @@
 use anyhow::Result;
 use chrono::NaiveDateTime;
-#[cfg(feature = "json")]
-use serde_json::to_string;
 use wildmatch::WildMatch;
 
 use crate::conf;
@@ -10,35 +8,14 @@ use crate::data::activity::Activity;
 use crate::data::bartib_file;
 use crate::data::getter;
 use crate::data::processor;
-use crate::view::list;
-use crate::view::settings::CliSettings;
-#[cfg(feature = "json")]
-use crate::view::settings::OutputFormat;
+use crate::view::output::OutputWriter;
 
 // lists all currently running activities.
-#[cfg_attr(not(feature = "json"), allow(unused_variables))]
-pub fn list_running(file_name: &str, settings: &CliSettings) -> Result<()> {
+pub fn list_running(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let running_activities = getter::get_running_activities(&file_content);
 
-    #[cfg(feature = "json")]
-    match settings.output_format {
-        OutputFormat::Json => {
-            let serialized = to_string(&running_activities)?;
-            println!("{}", serialized);
-            Ok(())
-        }
-        OutputFormat::Plaintext => {
-            list::list_running_activities(&running_activities);
-            Ok(())
-        }
-    }
-
-    #[cfg(not(feature = "json"))]
-    {
-        list::list_running_activities(&running_activities);
-        Ok(())
-    }
+    writer.running_activities(&running_activities)
 }
 
 // lists tracked activities
@@ -49,6 +26,7 @@ pub fn list(
     filter: getter::ActivityFilter,
     do_group_activities: bool,
     processors: processor::ProcessorList,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let activities = getter::get_activities(&file_content).collect();
@@ -67,14 +45,11 @@ pub fn list(
             .unwrap_or(filtered_activities.len()),
     );
 
-    if do_group_activities {
-        list::list_activities_grouped_by_date(&filtered_activities[first_element..]);
-    } else {
-        let with_start_dates = filter.date.is_none();
-        list::list_activities(&filtered_activities[first_element..], with_start_dates);
-    }
-
-    Ok(())
+    writer.activities(
+        &filtered_activities[first_element..],
+        do_group_activities,
+        filter.date.is_none(),
+    )
 }
 
 // checks the file content for sanity
@@ -119,7 +94,7 @@ fn check_sanity(
     line_number: Option<usize>,
 ) -> bool {
     let mut sane = true;
-    if activity.get_duration().num_milliseconds() < 0 {
+    if activity.get_signed_duration().num_milliseconds() < 0 {
         println!("Activity has negative duration");
         sane = false;
     }
@@ -185,7 +160,12 @@ pub fn check(file_name: &str) -> Result<()> {
 }
 
 // lists all projects
-pub fn list_projects(file_name: &str, current: bool, no_quotes: bool) -> Result<()> {
+pub fn list_projects(
+    file_name: &str,
+    current: bool,
+    no_quotes: bool,
+    writer: &dyn OutputWriter,
+) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
 
     let mut all_projects: Vec<&String> = getter::get_activities(&file_content)
@@ -196,32 +176,33 @@ pub fn list_projects(file_name: &str, current: bool, no_quotes: bool) -> Result<
     all_projects.sort_unstable();
     all_projects.dedup();
 
-    for project in all_projects {
-        if no_quotes {
-            println!("{project}");
-        } else {
-            println!("\"{project}\"");
-        }
-    }
-
-    Ok(())
+    writer.projects(&all_projects, no_quotes)
 }
 
 // return last finished activity
-pub fn list_last_activities(file_name: &str, number: usize) -> Result<()> {
+pub fn list_last_activities(
+    file_name: &str,
+    number: usize,
+    writer: &dyn OutputWriter,
+) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
 
     let descriptions_and_projects: Vec<(&String, &String)> =
         getter::get_descriptions_and_projects(&file_content);
     let first_element = descriptions_and_projects.len().saturating_sub(number);
 
-    list::list_descriptions_and_projects(&descriptions_and_projects[first_element..]);
+    let indexed: Vec<(usize, &(&String, &String))> = descriptions_and_projects[first_element..]
+        .iter()
+        .rev()
+        .enumerate()
+        .rev()
+        .collect();
 
-    Ok(())
+    writer.indexed_activities(&indexed, "No activities have been tracked yet")
 }
 
 // searches for the term in descriptions and projects
-pub fn search(file_name: &str, search_term: Option<&str>) -> Result<()> {
+pub fn search(file_name: &str, search_term: Option<&str>, writer: &dyn OutputWriter) -> Result<()> {
     let search_term = search_term
         .map(|term| format!("*{}*", term.to_lowercase()))
         .unwrap_or("".to_string());
@@ -241,7 +222,5 @@ pub fn search(file_name: &str, search_term: Option<&str>) -> Result<()> {
         })
         .collect();
 
-    list::list_descriptions_and_projects_with_index(&matches, "No matching activities found");
-
-    Ok(())
+    writer.indexed_activities(&matches, "No matching activities found")
 }

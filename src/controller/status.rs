@@ -1,11 +1,6 @@
 use anyhow::Result;
 use chrono::Local;
 
-#[cfg(feature = "json")]
-use crate::view::settings::OutputFormat;
-#[cfg(feature = "json")]
-use serde_json::to_string;
-
 use crate::data::activity;
 use crate::data::activity::Activity;
 use crate::data::bartib_file;
@@ -13,15 +8,13 @@ use crate::data::filter::Filters;
 use crate::data::getter;
 use crate::data::processor;
 use crate::data::processor::StatusReportData;
-use crate::view::settings::CliSettings;
+use crate::view::output::OutputWriter;
 
-#[cfg_attr(not(feature = "json"), allow(unused_variables))]
 pub fn show_status(
     file_name: &str,
     filter: getter::ActivityFilter,
     processors: processor::ProcessorList,
-    writer: &dyn processor::StatusReportWriter,
-    settings: &CliSettings,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let activities: Vec<&Activity> = getter::get_activities(&file_content).collect();
@@ -72,16 +65,5 @@ pub fn show_status(
         project: filter.project,
     };
 
-    #[cfg(not(feature = "json"))]
-    return writer.process(&status_report_data);
-
-    #[cfg(feature = "json")]
-    return match settings.output_format {
-        OutputFormat::Plaintext => writer.process(&status_report_data),
-        OutputFormat::Json => {
-            let serialized = to_string(&status_report_data)?;
-            println!("{}", serialized);
-            Ok(())
-        }
-    };
+    writer.status(&status_report_data)
 }

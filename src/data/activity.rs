@@ -3,12 +3,6 @@ use chrono::DurationRound;
 #[cfg(feature = "second-precision")]
 use chrono::Timelike;
 use chrono::{Duration, Local, NaiveDateTime};
-
-#[cfg(feature = "json")]
-use serde::ser::SerializeStruct;
-#[cfg(feature = "json")]
-use serde::{Serialize, Serializer};
-
 use std::fmt;
 use std::str::{Chars, FromStr};
 use thiserror::Error;
@@ -22,26 +16,6 @@ pub struct Activity {
 
     pub project: String,
     pub description: String,
-}
-
-#[cfg(feature = "json")]
-impl Serialize for Activity {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let start_time = &self.start.format(conf::FORMAT_DATETIME).to_string();
-        let end_time = &self
-            .end
-            .map(|t| t.format(conf::FORMAT_DATETIME).to_string());
-
-        let mut s = serializer.serialize_struct("Activity", 4)?;
-        s.serialize_field("start", start_time)?;
-        s.serialize_field("end", end_time)?;
-        s.serialize_field("project", &self.project)?;
-        s.serialize_field("description", &self.description)?;
-        s.end()
-    }
 }
 
 #[derive(Error, Debug)]
@@ -72,8 +46,21 @@ impl Activity {
         self.end.is_some()
     }
 
+    // how long this activity has been running, never negative
+    //
+    // an activity can be given a start in the future (`bartib start -t 23:00`)
+    // or an end before its start by editing the log by hand. Reporting negative
+    // elapsed time is meaningless, so it is clamped to zero here; `bartib
+    // sanity` uses `get_signed_duration` to still surface such entries.
     #[must_use]
     pub fn get_duration(&self) -> Duration {
+        self.get_signed_duration().max(Duration::zero())
+    }
+
+    // the raw difference between start and end, which may be negative for an
+    // inconsistent activity
+    #[must_use]
+    pub fn get_signed_duration(&self) -> Duration {
         if let Some(end) = self.end {
             end.signed_duration_since(self.start)
         } else {

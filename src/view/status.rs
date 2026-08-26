@@ -4,17 +4,8 @@ use chrono::Duration;
 use nu_ansi_term::{Color, Style};
 
 use crate::data::activity;
-use crate::data::processor::{StatusReportData, StatusReportWriter};
+use crate::data::processor::StatusReportData;
 use crate::view::format_util;
-
-pub struct StatusReport {}
-
-impl StatusReportWriter for StatusReport {
-    fn process(&self, data: &StatusReportData) -> anyhow::Result<()> {
-        println!("{data}");
-        Ok(())
-    }
-}
 
 impl fmt::Display for StatusReportData<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

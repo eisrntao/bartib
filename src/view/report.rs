@@ -11,7 +11,7 @@ use crate::conf;
 use crate::data::activity;
 use crate::view::format_util;
 
-type ProjectMap<'a> = BTreeMap<&'a str, (Vec<&'a activity::Activity>, Duration)>;
+pub(crate) type ProjectMap<'a> = BTreeMap<&'a str, (Vec<&'a activity::Activity>, Duration)>;
 
 struct Report<'a> {
     project_map: ProjectMap<'a>,
@@ -61,7 +61,7 @@ pub fn show_activities<'a>(activities: &'a [&'a activity::Activity]) {
     println!("\n{report}");
 }
 
-fn create_project_map<'a>(activities: &'a [&'a activity::Activity]) -> ProjectMap<'a> {
+pub(crate) fn create_project_map<'a>(activities: &'a [&'a activity::Activity]) -> ProjectMap<'a> {
     let mut project_map: ProjectMap = BTreeMap::new();
 
     for a in activities {
@@ -170,7 +170,7 @@ fn print_total_duration(
     Ok(())
 }
 
-fn group_activities_by_description<'a>(
+pub(crate) fn group_activities_by_description<'a>(
     activities: &'a [&'a activity::Activity],
 ) -> BTreeMap<&'a str, Vec<&'a activity::Activity>> {
     let mut activity_map: BTreeMap<&'a str, Vec<&'a activity::Activity>> = BTreeMap::new();

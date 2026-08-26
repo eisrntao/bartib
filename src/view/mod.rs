@@ -1,5 +1,8 @@
 pub mod format_util;
+#[cfg(feature = "json")]
+pub mod json;
 pub mod list;
+pub mod output;
 pub mod report;
 pub mod settings;
 pub mod status;
