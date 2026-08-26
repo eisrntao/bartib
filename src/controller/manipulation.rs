@@ -148,33 +148,28 @@ pub fn continue_last_activity(
         bail!("No activity has been started before.")
     }
 
-    if number > descriptions_and_projects.len() {
+    // the activities are addressed by a zero based index, so the highest valid
+    // number is one less than the count
+    if number >= descriptions_and_projects.len() {
         bail!(format!(
-            "Less than {} distinct activities have been logged yet",
-            number
+            "Only {} distinct activities have been logged yet, so the highest number to continue is {}",
+            descriptions_and_projects.len(),
+            descriptions_and_projects.len() - 1
         ));
     }
 
-    let i = descriptions_and_projects
-        .len()
-        .saturating_sub(number)
-        .saturating_sub(1);
-    let optional_description_and_project = descriptions_and_projects.get(i);
+    // the list runs oldest to newest while the number counts back from the
+    // newest, and the check above guarantees this stays in bounds
+    let (description, project) =
+        descriptions_and_projects[descriptions_and_projects.len() - number - 1];
 
-    if let Some((description, project)) = optional_description_and_project {
-        let new_activity = activity::Activity::start(
-            project_name.unwrap_or(project).to_string(),
-            activity_description.unwrap_or(description).to_string(),
-            time,
-        );
-        stop_all_running_activities(&mut file_content, time);
-        save_new_activity(file_name, &mut file_content, new_activity)
-    } else {
-        bail!(format!(
-            "Less than {} distinct activities have been logged yet",
-            number
-        ));
-    }
+    let new_activity = activity::Activity::start(
+        project_name.unwrap_or(project).to_string(),
+        activity_description.unwrap_or(description).to_string(),
+        time,
+    );
+    stop_all_running_activities(&mut file_content, time);
+    save_new_activity(file_name, &mut file_content, new_activity)
 }
 
 pub fn toggle(

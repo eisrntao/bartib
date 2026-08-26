@@ -10,7 +10,7 @@ bartib — a simple command-line time tracker
 bartib -f FILE SUBCOMMAND [OPTIONS]
 ```
 
-The file can also be supplied via the `BARTIB_FILE` environment variable instead of the `-f` flag (see **GLOBAL OPTIONS** and **ENVIRONMENT**).
+The file can also be supplied via the `BARTIB_FILE` environment variable instead of the `-f` / `--file` flag (see **GLOBAL OPTIONS** and **ENVIRONMENT**).
 
 ## DESCRIPTION
 
@@ -20,8 +20,11 @@ The activity log is a human-readable text file that can be edited manually. See 
 
 ## GLOBAL OPTIONS
 
-`-f FILE`
+`-f FILE`, `--file FILE`
 : Path to the activity log file. Overrides the `BARTIB_FILE` environment variable. Required unless `BARTIB_FILE` is set.
+
+`--json`
+: Emit machine-readable JSON on stdout instead of the human-readable tables. Available on every subcommand that produces output. Durations are whole seconds and timestamps are ISO 8601 without a timezone offset, matching the local wall-clock times stored in the log. Warnings are written to stderr, so stdout always holds a single valid JSON document. Present only when compiled with the `json` feature, which is enabled by default.
 
 `-h`, `--help`
 : Print a help summary and exit.
@@ -67,6 +70,27 @@ Stop all currently running activities.
 
 ---
 
+### toggle
+
+```
+bartib toggle [-p PROJECT] [-d DESCRIPTION] [-t TIME]
+```
+
+Stop the running activities if any are running, otherwise continue the most recent one. This is a single command suitable for a keybinding or a status-bar button, where the same action should pause and resume tracking.
+
+**Options**
+
+`-p PROJECT`, `--project PROJECT`
+: Override the project name when resuming. Ignored when stopping.
+
+`-d DESCRIPTION`, `--description DESCRIPTION`
+: Override the description when resuming. Ignored when stopping.
+
+`-t TIME`, `--time TIME`
+: Record the given time instead of now, as the end time when stopping or the start time when resuming. Format: `HH:MM`.
+
+---
+
 ### continue
 
 ```
@@ -78,7 +102,7 @@ Start a new activity reusing the project and description of a recently used acti
 **Options**
 
 `NUMBER`
-: Index of the activity to continue as listed by `bartib last`. Defaults to `0`.
+: Index of the activity to continue as listed by `bartib last`. Defaults to `0`. Indices are zero-based, so with *n* distinct activities the highest valid number is *n* − 1; anything larger is an error.
 
 `-p PROJECT`, `--project PROJECT`
 : Override the project name.

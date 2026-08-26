@@ -158,6 +158,51 @@ fn continue_restarts_the_last_activity() {
 }
 
 #[test]
+fn continue_addresses_activities_by_zero_based_index() {
+    // the sample log holds two distinct activities, so 0 and 1 are the only
+    // valid numbers
+    let log = TestLog::sample();
+    log.stdout(&["continue", "1", "-t", "15:00"]);
+
+    assert!(
+        log.read().contains("15:00 | proj_b | task two"),
+        "got: {}",
+        log.read()
+    );
+}
+
+#[test]
+fn continue_rejects_an_index_past_the_end() {
+    // `continue 2` with two distinct activities used to saturate to index 0 and
+    // silently continue the oldest entry instead of reporting the mistake
+    let log = TestLog::sample();
+    let output = log.run(&["continue", "2", "-t", "15:00"]);
+
+    assert!(!output.status.success(), "continue 2 should have failed");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("distinct activities"));
+    assert!(
+        !log.read().contains("15:00"),
+        "log was modified: {}",
+        log.read()
+    );
+}
+
+#[test]
+fn file_can_be_given_as_a_long_flag() {
+    // the documentation refers to --file, not just -f
+    let log = TestLog::sample();
+    let output = Command::new(env!("CARGO_BIN_EXE_bartib"))
+        .arg("--file")
+        .arg(&log.path)
+        .arg("projects")
+        .output()
+        .expect("could not run bartib");
+
+    assert!(output.status.success(), "--file was rejected");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("proj_a"));
+}
+
+#[test]
 fn toggle_resumes_when_nothing_is_running() {
     let log = TestLog::sample();
     log.stdout(&["toggle", "-t", "15:00"]);

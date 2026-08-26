@@ -80,7 +80,7 @@ This means files can be shared across builds of different precision without data
 
 The `bartib sanity` subcommand checks a file for logical errors and prints a warning for each one found. If no problems are detected it prints `No unusual activities.`
 
-Before checking, all successfully parsed activities are sorted by start time. Lines that cannot be parsed are silently ignored.
+Before checking, all successfully parsed activities are sorted by start time. Lines that cannot be parsed are ignored, with a warning on stderr.
 
 Two conditions are flagged:
 
@@ -107,7 +107,7 @@ For each flagged activity, the subcommand prints the description, start time, en
 
 The file format places no restriction on how many activities may be running at the same time — any number of lines without an end time is valid. This situation can arise when the file is edited manually.
 
-Bartib's own commands always prevent accidental accumulation of running activities: `bartib start` and `bartib continue` stop all currently running activities before recording a new one. Likewise, `bartib stop` and `bartib cancel` act on *all* running activities at once, as does `bartib change`.
+Bartib's own commands always prevent accidental accumulation of running activities: `bartib start`, `bartib continue` and `bartib toggle` stop all currently running activities before recording a new one. Likewise, `bartib stop` and `bartib cancel` act on *all* running activities at once, as does `bartib change`.
 
 `bartib current` lists all running activities, so multiple entries will all be shown.
 
@@ -115,6 +115,6 @@ The `bartib sanity` subcommand does **not** flag multiple simultaneous running a
 
 ## File Behaviour
 
-- Lines that cannot be parsed are silently skipped when reading activities, but are preserved as-is when the file is written back. This means comments or malformed lines are not lost.
+- Lines that cannot be parsed are skipped when reading activities, but are preserved as-is when the file is written back. This means comments or malformed lines are not lost. Each skipped line produces a warning on stderr, so stdout stays usable in a pipeline; run `bartib check` for details.
 - The file is not sorted; activities appear in the order they were recorded.
-- The file path is configured via the `--file` / `-f` command-line flag or the `BARTIB_FILE` environment variable. The file is created automatically if it does not exist.
+- The file path is configured via the `-f` / `--file` command-line flag or the `BARTIB_FILE` environment variable. The file is created automatically if it does not exist.

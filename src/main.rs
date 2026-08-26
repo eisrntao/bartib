@@ -111,6 +111,7 @@ To get started, view the `start` help with `bartib start --help`")
         .arg(
             Arg::with_name("file")
                 .short("f")
+                .long("file")
                 .value_name("FILE")
                 .help("the file in which bartib tracks all the activities")
                 .env("BARTIB_FILE")
