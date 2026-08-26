@@ -15,6 +15,7 @@ use crate::data::processor;
 use crate::data::processor::StatusReportData;
 use crate::view::settings::CliSettings;
 
+#[cfg_attr(not(feature = "json"), allow(unused_variables))]
 pub fn show_status(
     file_name: &str,
     filter: getter::ActivityFilter,
@@ -23,8 +24,7 @@ pub fn show_status(
     settings: &CliSettings,
 ) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
-    let activities: Vec<&Activity> =
-        getter::get_activities(&file_content, !settings.nowarn).collect();
+    let activities: Vec<&Activity> = getter::get_activities(&file_content).collect();
 
     let processed_activities_bind: Vec<activity::Activity> =
         processor::process_activities(activities, processors);

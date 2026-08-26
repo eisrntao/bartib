@@ -18,9 +18,8 @@ pub struct ActivityFilter<'a> {
 #[must_use]
 pub fn get_descriptions_and_projects(
     file_content: &[bartib_file::Line],
-    warn: bool,
 ) -> Vec<(&String, &String)> {
-    let mut activities: Vec<&activity::Activity> = get_activities(file_content, warn).collect();
+    let mut activities: Vec<&activity::Activity> = get_activities(file_content).collect();
     get_descriptions_and_projects_from_activities(&mut activities)
 }
 
@@ -54,29 +53,24 @@ fn get_descriptions_and_projects_from_activities<'a>(
 }
 
 #[must_use]
-pub fn get_running_activities(
-    file_content: &[bartib_file::Line],
-    warn: bool,
-) -> Vec<&activity::Activity> {
-    get_activities(file_content, warn)
+pub fn get_running_activities(file_content: &[bartib_file::Line]) -> Vec<&activity::Activity> {
+    get_activities(file_content)
         .filter(Filters::active)
         .collect()
 }
 
 pub fn get_activities(
     file_content: &[bartib_file::Line],
-    warn: bool,
 ) -> impl Iterator<Item = &activity::Activity> {
     file_content
         .iter()
-        .filter_map(move |line: &bartib_file::Line| match &line.activity {
+        .filter_map(|line: &bartib_file::Line| match &line.activity {
             Ok(activity) => Some(activity),
             Err(_) => {
-                if warn {
-                    println!(
-                        "Warning: Ignoring line {}. Please see `bartib check` for further information",
-                        line.line_number.unwrap_or(0),
-                    );}
+                eprintln!(
+                    "Warning: Ignoring line {}. Please see `bartib check` for further information",
+                    line.line_number.unwrap_or(0),
+                );
                 None
             }
         })
@@ -111,11 +105,8 @@ pub fn filter_activities<'a>(
 }
 
 #[must_use]
-pub fn get_last_activity_by_end(
-    file_content: &[bartib_file::Line],
-    warn: bool,
-) -> Option<&activity::Activity> {
-    get_activities(file_content, warn)
+pub fn get_last_activity_by_end(file_content: &[bartib_file::Line]) -> Option<&activity::Activity> {
+    get_activities(file_content)
         .filter(|activity| activity.is_stopped())
         .max_by_key(|activity| {
             activity
@@ -127,9 +118,8 @@ pub fn get_last_activity_by_end(
 #[must_use]
 pub fn get_last_activity_by_start(
     file_content: &[bartib_file::Line],
-    warn: bool,
 ) -> Option<&activity::Activity> {
-    get_activities(file_content, warn).max_by_key(|activity| activity.start)
+    get_activities(file_content).max_by_key(|activity| activity.start)
 }
 
 #[cfg(test)]

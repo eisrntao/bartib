@@ -118,14 +118,6 @@ To get started, view the `start` help with `bartib start --help`")
                 .env("BARTIB_FILE")
                 .takes_value(true),
         )
-        .arg(
-            Arg::with_name("nowarn")
-                .long("nowarn")
-                .help("suppress warnings")
-                .required(false)
-                .takes_value(false)
-                .global(true)
-        )
         .subcommand(
             SubCommand::with_name("start")
                 .about("starts a new activity")
@@ -364,7 +356,6 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
                 activity_description,
                 time,
                 number,
-                &settings,
             )
         }
         ("stop", Some(sub_m)) => {
@@ -383,7 +374,6 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
                 project_name,
                 activity_description,
                 time,
-                &settings,
             )
         }
         ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name),
@@ -392,29 +382,22 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
             let do_group_activities = !sub_m.is_present("no_grouping") && filter.date.is_none();
-            bartib::controller::list::list(
-                file_name,
-                filter,
-                do_group_activities,
-                processors,
-                &settings,
-            )
+            bartib::controller::list::list(file_name, filter, do_group_activities, processors)
         }
         ("report", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
             let processors = create_processors_for_arguments(sub_m);
-            bartib::controller::report::show_report(file_name, filter, processors, &settings)
+            bartib::controller::report::show_report(file_name, filter, processors)
         }
         ("projects", Some(sub_m)) => bartib::controller::list::list_projects(
             file_name,
             sub_m.is_present("current"),
             sub_m.is_present("no-quotes"),
-            &settings,
         ),
         ("last", Some(sub_m)) => {
             let number = get_number_argument_or_ignore(sub_m.value_of("number"), "-n/--number")
                 .unwrap_or(10);
-            bartib::controller::list::list_last_activities(file_name, number, &settings)
+            bartib::controller::list::list_last_activities(file_name, number)
         }
         ("edit", Some(sub_m)) => {
             let optional_editor_command = sub_m.value_of("editor");
@@ -424,7 +407,7 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, settings: CliSettings) 
         ("sanity", Some(_)) => bartib::controller::list::sanity_check(file_name),
         ("search", Some(sub_m)) => {
             let search_term = sub_m.value_of("search_term");
-            bartib::controller::list::search(file_name, search_term, &settings)
+            bartib::controller::list::search(file_name, search_term)
         }
         ("status", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);

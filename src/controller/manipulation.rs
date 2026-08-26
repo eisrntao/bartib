@@ -7,7 +7,6 @@ use crate::data::activity;
 use crate::data::bartib_file;
 use crate::data::getter;
 use crate::view::format_util;
-use crate::view::settings::CliSettings;
 
 // starts a new activity
 pub fn start(
@@ -139,12 +138,11 @@ pub fn continue_last_activity(
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
     number: usize,
-    settings: &CliSettings,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
 
     let descriptions_and_projects: Vec<(&String, &String)> =
-        getter::get_descriptions_and_projects(&file_content, !settings.nowarn);
+        getter::get_descriptions_and_projects(&file_content);
 
     if descriptions_and_projects.is_empty() {
         bail!("No activity has been started before.")
@@ -184,31 +182,18 @@ pub fn toggle(
     project_name: Option<&str>,
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
-    settings: &CliSettings,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
     if file_content.is_empty() {
         bail!("No activity has been started before.")
     }
 
-    if stop_all_running_activities(&mut file_content, time).is_some() {
-        if bartib_file::write_to_file(file_name, &file_content)
+    if stop_all_running_activities(&mut file_content, time) {
+        bartib_file::write_to_file(file_name, &file_content)
             .context(format!("Could not write to file: {file_name}"))
-            .is_ok()
-        {
-            println!("Stopped all running activities");
-        }
     } else {
-        continue_last_activity(
-            file_name,
-            project_name,
-            activity_description,
-            time,
-            0,
-            settings,
-        )?
+        continue_last_activity(file_name, project_name, activity_description, time, 0)
     }
-    Ok(())
 }
 
 pub fn start_editor(file_name: &str, optional_editor_command: Option<&str>) -> Result<()> {
@@ -227,13 +212,13 @@ pub fn start_editor(file_name: &str, optional_editor_command: Option<&str>) -> R
 fn stop_all_running_activities(
     file_content: &mut [bartib_file::Line],
     time: Option<NaiveDateTime>,
-) -> Option<usize> {
-    let mut count: usize = 0;
+) -> bool {
+    let mut stopped_any = false;
 
     for line in file_content {
         if let Ok(activity) = &mut line.activity {
             if !activity.is_stopped() {
-                count += 1;
+                stopped_any = true;
                 activity.stop(time);
                 println!(
                     "Stopped activity: \"{}\" ({}) started at {} ({})",
@@ -248,9 +233,5 @@ fn stop_all_running_activities(
         }
     }
 
-    if count > 0 {
-        Some(count)
-    } else {
-        None
-    }
+    stopped_any
 }
