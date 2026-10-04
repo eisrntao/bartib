@@ -1,12 +1,11 @@
-use anyhow::{anyhow, bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::NaiveDateTime;
 use std::process::Command;
 
-use crate::conf;
 use crate::data::activity;
 use crate::data::bartib_file;
 use crate::data::getter;
-use crate::view::format_util;
+use crate::view::output::{ActivityEvent, OutputWriter};
 
 // starts a new activity
 pub fn start(
@@ -14,14 +13,18 @@ pub fn start(
     project_name: &str,
     activity_description: &str,
     time: Option<NaiveDateTime>,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let mut file_content: Vec<bartib_file::Line> = Vec::new();
+    let mut events: Vec<ActivityEvent> = Vec::new();
 
     if let Ok(mut previous_file_content) = bartib_file::get_file_content(file_name) {
         // if we start a new activities programaticly, we stop all other activities first.
         // However, we must not assume that there is always only one activity
         // running as the user may have started activities manually
-        stop_all_running_activities(&mut previous_file_content, time);
+        for stopped in stop_all_running_activities(&mut previous_file_content, time) {
+            events.push(ActivityEvent::stopped(stopped));
+        }
 
         file_content.append(&mut previous_file_content);
     }
@@ -32,20 +35,17 @@ pub fn start(
         time,
     );
 
-    save_new_activity(file_name, &mut file_content, activity)
+    save_new_activity(file_name, &mut file_content, activity, &mut events)?;
+    writer.activity_events(&events)
 }
 
 fn save_new_activity(
     file_name: &str,
     file_content: &mut Vec<bartib_file::Line>,
     activity: activity::Activity,
-) -> Result<(), Error> {
-    println!(
-        "Started activity: \"{}\" ({}) at {}",
-        activity.description,
-        activity.project,
-        activity.start.format(conf::FORMAT_DATETIME)
-    );
+    events: &mut Vec<ActivityEvent>,
+) -> Result<()> {
+    events.push(ActivityEvent::started(activity.clone()));
 
     file_content.push(bartib_file::Line::for_activity(activity));
     bartib_file::write_to_file(file_name, file_content)
@@ -57,8 +57,10 @@ pub fn change(
     project_name: Option<&str>,
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
+    let mut events: Vec<ActivityEvent> = Vec::new();
 
     for line in &mut file_content {
         if let Ok(activity) = &mut line.activity {
@@ -81,33 +83,36 @@ pub fn change(
                 }
 
                 if changed {
-                    println!(
-                        "Changed activity: \"{}\" ({}) started at {}",
-                        activity.description,
-                        activity.project,
-                        activity.start.format(conf::FORMAT_DATETIME)
-                    );
+                    events.push(ActivityEvent::changed(activity.clone()));
                     line.set_changed();
                 }
             }
         }
     }
     bartib_file::write_to_file(file_name, &file_content)
-        .context(format!("Could not write to file: {file_name}"))
+        .context(format!("Could not write to file: {file_name}"))?;
+    writer.activity_events(&events)
 }
 
 // stops all currently running activities
-pub fn stop(file_name: &str, time: Option<NaiveDateTime>) -> Result<()> {
+pub fn stop(
+    file_name: &str,
+    time: Option<NaiveDateTime>,
+    writer: &dyn OutputWriter,
+) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
-    stop_all_running_activities(&mut file_content, time);
+    let stopped = stop_all_running_activities(&mut file_content, time);
     bartib_file::write_to_file(file_name, &file_content)
-        .context(format!("Could not write to file: {file_name}"))
+        .context(format!("Could not write to file: {file_name}"))?;
+    let events: Vec<ActivityEvent> = stopped.into_iter().map(ActivityEvent::stopped).collect();
+    writer.activity_events(&events)
 }
 
 // cancels all currently running activities
-pub fn cancel(file_name: &str) -> Result<()> {
+pub fn cancel(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let mut new_file_content: Vec<bartib_file::Line> = Vec::new();
+    let mut events: Vec<ActivityEvent> = Vec::new();
 
     for line in file_content {
         match &line.activity {
@@ -115,12 +120,7 @@ pub fn cancel(file_name: &str) -> Result<()> {
                 if activity.is_stopped() {
                     new_file_content.push(line);
                 } else {
-                    println!(
-                        "Canceled activity: \"{}\" ({}) started at {}",
-                        activity.description,
-                        activity.project,
-                        activity.start.format(conf::FORMAT_DATETIME)
-                    );
+                    events.push(ActivityEvent::canceled(activity.clone()));
                 }
             }
             Err(_) => new_file_content.push(line),
@@ -128,7 +128,8 @@ pub fn cancel(file_name: &str) -> Result<()> {
     }
 
     bartib_file::write_to_file(file_name, &new_file_content)
-        .context(format!("Could not write to file: {file_name}"))
+        .context(format!("Could not write to file: {file_name}"))?;
+    writer.activity_events(&events)
 }
 
 // continue last activity
@@ -138,6 +139,7 @@ pub fn continue_last_activity(
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
     number: usize,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
 
@@ -168,8 +170,13 @@ pub fn continue_last_activity(
         activity_description.unwrap_or(description).to_string(),
         time,
     );
-    stop_all_running_activities(&mut file_content, time);
-    save_new_activity(file_name, &mut file_content, new_activity)
+
+    let mut events: Vec<ActivityEvent> = stop_all_running_activities(&mut file_content, time)
+        .into_iter()
+        .map(ActivityEvent::stopped)
+        .collect();
+    save_new_activity(file_name, &mut file_content, new_activity, &mut events)?;
+    writer.activity_events(&events)
 }
 
 pub fn toggle(
@@ -177,17 +184,22 @@ pub fn toggle(
     project_name: Option<&str>,
     activity_description: Option<&str>,
     time: Option<NaiveDateTime>,
+    writer: &dyn OutputWriter,
 ) -> Result<()> {
     let mut file_content = bartib_file::get_file_content(file_name)?;
     if file_content.is_empty() {
         bail!("No activity has been started before.")
     }
 
-    if stop_all_running_activities(&mut file_content, time) {
-        bartib_file::write_to_file(file_name, &file_content)
-            .context(format!("Could not write to file: {file_name}"))
+    let stopped = stop_all_running_activities(&mut file_content, time);
+    if stopped.is_empty() {
+        continue_last_activity(file_name, project_name, activity_description, time, 0, writer)
     } else {
-        continue_last_activity(file_name, project_name, activity_description, time, 0)
+        bartib_file::write_to_file(file_name, &file_content)
+            .context(format!("Could not write to file: {file_name}"))?;
+        let events: Vec<ActivityEvent> =
+            stopped.into_iter().map(ActivityEvent::stopped).collect();
+        writer.activity_events(&events)
     }
 }
 
@@ -204,29 +216,23 @@ pub fn start_editor(file_name: &str, optional_editor_command: Option<&str>) -> R
     }
 }
 
+// stops every running activity in place and returns a snapshot of each one that
+// was stopped, so callers can report them in whatever output format is active
 fn stop_all_running_activities(
     file_content: &mut [bartib_file::Line],
     time: Option<NaiveDateTime>,
-) -> bool {
-    let mut stopped_any = false;
+) -> Vec<activity::Activity> {
+    let mut stopped = Vec::new();
 
     for line in file_content {
         if let Ok(activity) = &mut line.activity {
             if !activity.is_stopped() {
-                stopped_any = true;
                 activity.stop(time);
-                println!(
-                    "Stopped activity: \"{}\" ({}) started at {} ({})",
-                    activity.description,
-                    activity.project,
-                    activity.start.format(conf::FORMAT_DATETIME),
-                    format_util::format_duration(&activity.get_duration()),
-                );
-
+                stopped.push(activity.clone());
                 line.set_changed();
             }
         }
     }
 
-    stopped_any
+    stopped
 }

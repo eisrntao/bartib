@@ -327,6 +327,7 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
                 project_name,
                 activity_description,
                 time,
+                writer,
             )
         }
         ("change", Some(sub_m)) => {
@@ -340,6 +341,7 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
                 project_name,
                 activity_description,
                 time,
+                writer,
             )
         }
         ("continue", Some(sub_m)) => {
@@ -356,13 +358,14 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
                 activity_description,
                 time,
                 number,
+                writer,
             )
         }
         ("stop", Some(sub_m)) => {
             let time = get_time_argument_or_ignore(sub_m.value_of("time"), "-t/--time")
                 .map(|t| Local::now().date_naive().and_time(t));
 
-            bartib::controller::manipulation::stop(file_name, time)
+            bartib::controller::manipulation::stop(file_name, time, writer)
         }
         ("toggle", Some(sub_m)) => {
             let project_name = sub_m.value_of("project");
@@ -374,9 +377,10 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
                 project_name,
                 activity_description,
                 time,
+                writer,
             )
         }
-        ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name),
+        ("cancel", Some(_)) => bartib::controller::manipulation::cancel(file_name, writer),
         ("current", Some(_)) => bartib::controller::list::list_running(file_name, writer),
         ("list", Some(sub_m)) => {
             let filter = create_filter_for_arguments(sub_m);
@@ -410,8 +414,8 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
             let optional_editor_command = sub_m.value_of("editor");
             bartib::controller::manipulation::start_editor(file_name, optional_editor_command)
         }
-        ("check", Some(_)) => bartib::controller::list::check(file_name),
-        ("sanity", Some(_)) => bartib::controller::list::sanity_check(file_name),
+        ("check", Some(_)) => bartib::controller::list::check(file_name, writer),
+        ("sanity", Some(_)) => bartib::controller::list::sanity_check(file_name, writer),
         ("search", Some(sub_m)) => {
             let search_term = sub_m.value_of("search_term");
             bartib::controller::list::search(file_name, search_term, writer)

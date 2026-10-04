@@ -511,4 +511,70 @@ mod json {
         let v = parse(&stdout);
         assert_eq!(v.as_array().unwrap().len(), 1);
     }
+
+    #[test]
+    fn start_emits_a_started_event() {
+        let log = TestLog::empty();
+        let v = parse(&log.stdout(&["start", "-p", "proj", "-d", "desc", "-t", "09:00", "--json"]));
+
+        assert_eq!(v.as_array().unwrap().len(), 1);
+        assert_eq!(v[0]["event"], "started");
+        assert_eq!(v[0]["activity"]["project"], "proj");
+        assert_eq!(v[0]["activity"]["is_running"], true);
+    }
+
+    #[test]
+    fn start_reports_the_activity_it_stopped_first() {
+        let log = TestLog::empty();
+        log.stdout(&["start", "-p", "a", "-d", "first", "-t", "09:00"]);
+
+        let v = parse(&log.stdout(&["start", "-p", "b", "-d", "second", "-t", "10:00", "--json"]));
+
+        let events = v.as_array().unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0]["event"], "stopped");
+        assert_eq!(events[0]["activity"]["description"], "first");
+        assert_eq!(events[1]["event"], "started");
+        assert_eq!(events[1]["activity"]["description"], "second");
+    }
+
+    #[test]
+    fn toggle_emits_events_in_both_directions() {
+        let log = TestLog::empty();
+        log.stdout(&["start", "-p", "proj", "-d", "desc", "-t", "09:00"]);
+
+        let stop = parse(&log.stdout(&["toggle", "--json"]));
+        assert_eq!(stop[0]["event"], "stopped");
+
+        let resume = parse(&log.stdout(&["toggle", "--json"]));
+        assert_eq!(resume[0]["event"], "started");
+        assert_eq!(resume[0]["activity"]["description"], "desc");
+    }
+
+    #[test]
+    fn check_emits_an_array_of_parse_errors() {
+        let log = TestLog::with_content("this line is garbage\n");
+        let v = parse(&log.stdout(&["check", "--json"]));
+
+        assert_eq!(v.as_array().unwrap().len(), 1);
+        assert_eq!(v[0]["line"], 1);
+        assert_eq!(v[0]["raw"], "this line is garbage");
+    }
+
+    #[test]
+    fn sanity_emits_an_empty_array_for_a_clean_log() {
+        let log = TestLog::sample();
+        let v = parse(&log.stdout(&["sanity", "--json"]));
+
+        assert_eq!(v.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn sanity_flags_a_negative_duration() {
+        let log = TestLog::with_content("2026-08-25 10:00 - 2026-08-25 09:00 | proj | backwards\n");
+        let v = parse(&log.stdout(&["sanity", "--json"]));
+
+        assert_eq!(v.as_array().unwrap().len(), 1);
+        assert_eq!(v[0]["negative_duration"], true);
+    }
 }

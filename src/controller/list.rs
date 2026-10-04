@@ -2,13 +2,12 @@ use anyhow::Result;
 use chrono::NaiveDateTime;
 use wildmatch::WildMatch;
 
-use crate::conf;
 use crate::data::activity;
 use crate::data::activity::Activity;
 use crate::data::bartib_file;
 use crate::data::getter;
 use crate::data::processor;
-use crate::view::output::OutputWriter;
+use crate::view::output::{OutputWriter, ParseError, SanityFinding};
 
 // lists all currently running activities.
 pub fn list_running(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
@@ -53,7 +52,7 @@ pub fn list(
 }
 
 // checks the file content for sanity
-pub fn sanity_check(file_name: &str) -> Result<()> {
+pub fn sanity_check(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
     let mut lines_with_activities: Vec<(Option<usize>, Activity)> = file_content
         .into_iter()
@@ -64,11 +63,21 @@ pub fn sanity_check(file_name: &str) -> Result<()> {
         .collect();
     lines_with_activities.sort_unstable_by_key(|(_, activity)| activity.start);
 
-    let mut has_finding: bool = false;
     let mut last_end: Option<NaiveDateTime> = None;
+    let mut findings: Vec<(usize, Activity, bool, bool)> = Vec::new();
 
     for (line_number, activity) in lines_with_activities {
-        has_finding = !check_sanity(last_end, &activity, line_number) || has_finding;
+        let negative_duration = activity.get_signed_duration().num_milliseconds() < 0;
+        let overlaps_previous = last_end.is_some_and(|e| e > activity.start);
+
+        if negative_duration || overlaps_previous {
+            findings.push((
+                line_number.unwrap_or(0),
+                activity.clone(),
+                negative_duration,
+                overlaps_previous,
+            ));
+        }
 
         if let Some(e) = last_end {
             if let Some(this_end) = activity.end {
@@ -81,82 +90,36 @@ pub fn sanity_check(file_name: &str) -> Result<()> {
         }
     }
 
-    if !has_finding {
-        println!("No unusual activities.");
-    }
+    let findings: Vec<SanityFinding> = findings
+        .iter()
+        .map(|(line_number, activity, negative_duration, overlaps_previous)| SanityFinding {
+            line_number: *line_number,
+            activity,
+            negative_duration: *negative_duration,
+            overlaps_previous: *overlaps_previous,
+        })
+        .collect();
 
-    Ok(())
+    writer.sanity_findings(&findings)
 }
 
-fn check_sanity(
-    last_end: Option<NaiveDateTime>,
-    activity: &Activity,
-    line_number: Option<usize>,
-) -> bool {
-    let mut sane = true;
-    if activity.get_signed_duration().num_milliseconds() < 0 {
-        println!("Activity has negative duration");
-        sane = false;
-    }
-
-    if let Some(e) = last_end {
-        if e > activity.start {
-            println!("Activity started before another activity ended");
-            sane = false;
-        }
-    }
-
-    if !sane {
-        print_activity_with_line(activity, line_number.unwrap_or(0));
-    }
-
-    sane
-}
-
-fn print_activity_with_line(activity: &Activity, line_number: usize) {
-    println!(
-        "{} (Started: {}, Ended: {}, Line: {})\n",
-        activity.description,
-        activity.start.format(conf::FORMAT_DATETIME),
-        activity.end.map_or_else(
-            || String::from("--"),
-            |end| end.format(conf::FORMAT_DATETIME).to_string()
-        ),
-        line_number
-    )
-}
-
-// prints all errors that occurred when reading the bartib file
-pub fn check(file_name: &str) -> Result<()> {
+// reports all errors that occurred when reading the bartib file
+pub fn check(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
 
-    let number_of_errors = file_content
+    let errors: Vec<ParseError> = file_content
         .iter()
-        .filter(|line| line.activity.is_err())
-        .count();
+        .filter_map(|line| match &line.activity {
+            Err(e) => line.plaintext.as_ref().map(|raw| ParseError {
+                line_number: line.line_number.unwrap_or(0),
+                raw,
+                message: e.to_string(),
+            }),
+            Ok(_) => None,
+        })
+        .collect();
 
-    if number_of_errors == 0 {
-        println!("All lines in the file have been successfully parsed as activities.");
-        return Ok(());
-    }
-
-    println!("Found {number_of_errors} line(s) with parsing errors");
-
-    file_content
-        .iter()
-        .filter(|line| line.activity.is_err() && line.plaintext.is_some())
-        .for_each(|line| {
-            if let Err(e) = &line.activity {
-                println!(
-                    "\n{}\n  -> {} (Line: {})",
-                    line.plaintext.as_ref().unwrap(),
-                    e,
-                    line.line_number.unwrap_or(0)
-                );
-            }
-        });
-
-    Ok(())
+    writer.parse_errors(&errors)
 }
 
 // lists all projects

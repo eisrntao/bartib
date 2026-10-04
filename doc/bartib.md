@@ -24,7 +24,7 @@ The activity log is a human-readable text file that can be edited manually. See 
 : Path to the activity log file. Overrides the `BARTIB_FILE` environment variable. Required unless `BARTIB_FILE` is set.
 
 `--json`
-: Emit machine-readable JSON on stdout instead of the human-readable tables. Available on every subcommand that produces output. Durations are whole seconds and timestamps are ISO 8601 without a timezone offset, matching the local wall-clock times stored in the log. Warnings are written to stderr, so stdout always holds a single valid JSON document. Present only when compiled with the `json` feature, which is enabled by default.
+: Emit machine-readable JSON on stdout instead of the human-readable output. Available on every subcommand (only `edit` produces nothing). Listing and reporting commands emit their table as JSON; `check` and `sanity` emit an array of findings (empty when the log is clean); `start`, `stop`, `change`, `continue`, `toggle`, and `cancel` emit an array of `{"event": "started|stopped|changed|canceled", "activity": {...}}` objects, one per affected activity. Durations are whole seconds and timestamps are ISO 8601 without a timezone offset, matching the local wall-clock times stored in the log. Warnings are written to stderr, so stdout always holds a single valid JSON document. Present only when compiled with the `json` feature, which is enabled by default.
 
 `-h`, `--help`
 : Print a help summary and exit.

@@ -4,7 +4,9 @@ use serde::Serialize;
 
 use crate::data::activity::Activity;
 use crate::data::processor::StatusReportData;
-use crate::view::output::OutputWriter;
+use crate::view::output::{
+    ActivityEvent, ActivityEventKind, OutputWriter, ParseError, SanityFinding,
+};
 use crate::view::report;
 
 // ISO 8601 without an offset.
@@ -77,6 +79,30 @@ struct StatusJson<'a> {
     today_seconds: i64,
     current_week_seconds: i64,
     current_month_seconds: i64,
+}
+
+#[derive(Serialize)]
+struct ActivityEventJson<'a> {
+    event: &'static str,
+    activity: ActivityJson<'a>,
+}
+
+#[derive(Serialize)]
+struct ParseErrorJson<'a> {
+    line: usize,
+    raw: &'a str,
+    message: &'a str,
+}
+
+#[derive(Serialize)]
+struct SanityFindingJson<'a> {
+    line: usize,
+    description: &'a str,
+    project: &'a str,
+    start: String,
+    end: Option<String>,
+    negative_duration: bool,
+    overlaps_previous: bool,
 }
 
 // machine readable output: one JSON document per invocation, on stdout
@@ -165,5 +191,49 @@ impl OutputWriter for JsonWriter {
             current_week_seconds: data.current_week.num_seconds(),
             current_month_seconds: data.current_month.num_seconds(),
         })
+    }
+
+    fn activity_events(&self, events: &[ActivityEvent]) -> Result<()> {
+        let out: Vec<ActivityEventJson> = events
+            .iter()
+            .map(|e| ActivityEventJson {
+                event: match e.kind {
+                    ActivityEventKind::Started => "started",
+                    ActivityEventKind::Stopped => "stopped",
+                    ActivityEventKind::Changed => "changed",
+                    ActivityEventKind::Canceled => "canceled",
+                },
+                activity: (&e.activity).into(),
+            })
+            .collect();
+        Self::print(&out)
+    }
+
+    fn parse_errors(&self, errors: &[ParseError]) -> Result<()> {
+        let out: Vec<ParseErrorJson> = errors
+            .iter()
+            .map(|e| ParseErrorJson {
+                line: e.line_number,
+                raw: e.raw,
+                message: &e.message,
+            })
+            .collect();
+        Self::print(&out)
+    }
+
+    fn sanity_findings(&self, findings: &[SanityFinding]) -> Result<()> {
+        let out: Vec<SanityFindingJson> = findings
+            .iter()
+            .map(|f| SanityFindingJson {
+                line: f.line_number,
+                description: &f.activity.description,
+                project: &f.activity.project,
+                start: format_timestamp(f.activity.start),
+                end: f.activity.end.map(format_timestamp),
+                negative_duration: f.negative_duration,
+                overlaps_previous: f.overlaps_previous,
+            })
+            .collect();
+        Self::print(&out)
     }
 }
