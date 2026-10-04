@@ -51,6 +51,19 @@ pub fn list(
     )
 }
 
+// dumps every activity in the log as JSON, oldest first
+//
+// export has no human readable form (that would just be the log file itself), so
+// it always uses the JSON writer regardless of `--json`.
+#[cfg(feature = "json")]
+pub fn export(file_name: &str) -> Result<()> {
+    let file_content = bartib_file::get_file_content(file_name)?;
+    let mut activities: Vec<&Activity> = getter::get_activities(&file_content).collect();
+    activities.sort_by_key(|activity| activity.start);
+
+    crate::view::json::JsonWriter {}.activities(&activities, false, true)
+}
+
 // checks the file content for sanity
 pub fn sanity_check(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
     let file_content = bartib_file::get_file_content(file_name)?;
@@ -92,12 +105,14 @@ pub fn sanity_check(file_name: &str, writer: &dyn OutputWriter) -> Result<()> {
 
     let findings: Vec<SanityFinding> = findings
         .iter()
-        .map(|(line_number, activity, negative_duration, overlaps_previous)| SanityFinding {
-            line_number: *line_number,
-            activity,
-            negative_duration: *negative_duration,
-            overlaps_previous: *overlaps_previous,
-        })
+        .map(
+            |(line_number, activity, negative_duration, overlaps_previous)| SanityFinding {
+                line_number: *line_number,
+                activity,
+                negative_duration: *negative_duration,
+                overlaps_previous: *overlaps_previous,
+            },
+        )
         .collect();
 
     writer.sanity_findings(&findings)

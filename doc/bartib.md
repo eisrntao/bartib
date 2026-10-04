@@ -304,6 +304,16 @@ Open the activity log in a text editor. Falls back to the `EDITOR` environment v
 
 ---
 
+### export
+
+```
+bartib export
+```
+
+Dump every activity in the log, oldest first, as a single JSON array using the same activity objects as `list --json`. Lines that cannot be parsed are skipped (use `check` to find them). The output is always JSON, so `--json` is accepted but implied: a plaintext dump would be identical to the log file itself. Present only when compiled with the `json` feature.
+
+---
+
 ### check
 
 ```

@@ -293,6 +293,11 @@ To get started, view the `start` help with `bartib start --help`")
 
     #[cfg(feature = "json")]
     {
+        app =
+            app.subcommand(SubCommand::with_name("export").about(
+                "dumps all activities as JSON (the output is always JSON; --json is implied)",
+            ));
+
         app = app.arg(
             Arg::with_name("json")
                 .long("json")
@@ -425,6 +430,8 @@ fn run_subcommand(matches: &ArgMatches, file_name: &str, writer: &dyn OutputWrit
             let processors = create_processors_for_arguments(sub_m);
             bartib::controller::status::show_status(file_name, filter, processors, writer)
         }
+        #[cfg(feature = "json")]
+        ("export", Some(_)) => bartib::controller::list::export(file_name),
         _ => bail!("Unknown command"),
     }
 }

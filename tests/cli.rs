@@ -577,4 +577,24 @@ mod json {
         assert_eq!(v.as_array().unwrap().len(), 1);
         assert_eq!(v[0]["negative_duration"], true);
     }
+
+    #[test]
+    fn export_dumps_all_activities_as_json_without_the_flag() {
+        let log = TestLog::sample();
+        let v = parse(&log.stdout(&["export"]));
+
+        let entries = v.as_array().unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0]["start"], "2026-08-25T09:00:00");
+        assert_eq!(entries[2]["description"], "task one");
+    }
+
+    #[test]
+    fn export_accepts_the_json_flag() {
+        let log = TestLog::sample();
+        let with_flag = parse(&log.stdout(&["export", "--json"]));
+        let without_flag = parse(&log.stdout(&["export"]));
+
+        assert_eq!(with_flag, without_flag);
+    }
 }
