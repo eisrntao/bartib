@@ -298,6 +298,8 @@ bartib list --round 15m # rounds the start and end time to the nearest duration.
 
 bartib search "exiting"   # search all descriptions and projects for a specific term
 bartib search "e*t?ng"   # use '?' and '*' as wildcards
+
+bartib export    # dump all activities as a JSON array (always JSON; needs the default `json` feature)
 ```
 
 ### Edit activities
